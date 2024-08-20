@@ -49,6 +49,18 @@ def deploy_rule(group_id, data):
     except requests.exceptions.RequestException as e:
         print(f"Failed to deploy rule: {e}")
         return None
+      
+def deploy_rule(group_id, data):
+    """Deploy a custom RASP rule to the specified group."""
+    url = BASE_URL + RCE_POLICY_ENDPOINT.format(group_id=group_id)
+    try:
+        response = requests.put(url, json=data, headers={'Authorization': f"ApiKey {TP_API_KEY}"})
+        print(f"Rule deployment response: {response.status_code}")
+        print(f"Response content: {response.content}")
+        return response.status_code
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to deploy rule: {e}")
+        return None
 
 def main():
     """Main function to deploy the RASP rule."""
