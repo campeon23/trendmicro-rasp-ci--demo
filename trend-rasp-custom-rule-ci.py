@@ -63,6 +63,7 @@ def deployRule(DATA):
       'Authorization': "ApiKey " + TP_API_KEY
   })
 
+  print("Rule deployment response:", response.status_code)
   return response.status_code
 
 # Driver Code
