@@ -2,61 +2,69 @@
 import requests
 import os
 import json
+import sys
 
-# Ensure to export TP_API_KEY='YOURKEY' from the activated venv shell first
-TP_API_KEY = str(os.getenv('TP_API_KEY'))
+# Constants
+BASE_URL = 'https://application.us-1.cloudone.trendmicro.com'
+GROUPS_ENDPOINT = '/accounts/groups'
+RCE_POLICY_ENDPOINT = '/security/rce/{group_id}/policy'
 
-def deployRule(DATA):
-    # Base URL and method URL for retrieving group IDs
-    BASE_URL = 'https://application.us-1.cloudone.trendmicro.com'
-    METHOD_URL = '/accounts/groups'
-    API_URL = BASE_URL + METHOD_URL
+# Ensure API key is set
+TP_API_KEY = os.getenv('TP_API_KEY')
+if not TP_API_KEY:
+    print("Error: TP_API_KEY environment variable is not set.")
+    sys.exit(1)
 
-    # Perform the GET request to retrieve groups
-    response = requests.get(API_URL, headers={
-        'Authorization': f"ApiKey {TP_API_KEY}"
-    })
+def get_group_id():
+    """Retrieve the first group ID from the API."""
+    url = BASE_URL + GROUPS_ENDPOINT
+    try:
+        response = requests.get(url, headers={'Authorization': f"ApiKey {TP_API_KEY}"})
+        print(f"Response status code GET: {response.status_code}")
+        response.raise_for_status()
+        groups = response.json()
+        
+        if not groups:
+            print("No groups found.")
+            return None
+        
+        group_id = groups[0].get('group_id')
+        if not group_id:
+            print("Group ID not found in the response.")
+            return None
 
-    # Check if the request was successful
-    if response.status_code != 200:
-        print(f"Failed to retrieve groups: {response.status_code} {response.text}")
+        print(f"Enumerated Group ID: {group_id}")
+        return group_id
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to retrieve group ID: {e}")
         return None
 
-    # Decode the JSON response
-    json_response = response.json()
-
-    # Check if the list is empty
-    if not json_response:
-        print("No groups found. Exiting.")
+def deploy_rule(group_id, data):
+    """Deploy a custom RASP rule to the specified group."""
+    url = BASE_URL + RCE_POLICY_ENDPOINT.format(group_id=group_id)
+    try:
+        response = requests.put(url, json=data, headers={'Authorization': f"ApiKey {TP_API_KEY}"})
+        print(f"Rule deployment response: {response.status_code}")
+        return response.status_code
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to deploy rule: {e}")
         return None
 
-    # Extract the group ID
-    GROUP_ID = str(json_response[0].get('group_id'))
-    print("ENUMERATED GROUP ID: " + GROUP_ID)
-
-    # Update the API URL for deploying the rule
-    METHOD_URL = f"/security/rce/{GROUP_ID}/policy"
-    API_URL = BASE_URL + METHOD_URL
-
-    # Perform the PUT request to deploy the rule
-    response = requests.put(API_URL, json=DATA, headers={
-        'Authorization': f"ApiKey {TP_API_KEY}"
-    })
-
-    # Print the response status code
-    print("Rule deployment response:", response.status_code)
-    return response.status_code
-
-# Driver Code
-if __name__ == '__main__':
+def main():
+    """Main function to deploy the RASP rule."""
     try:
         with open('example-custom-rasp-rule.json', 'r') as file_handle:
-            DATA = json.load(file_handle)
-
-        response = deployRule(DATA)
-        if response:
-            print(f"Rule deployment response: {response}")
+            data = json.load(file_handle)
     except FileNotFoundError:
         print("The file 'example-custom-rasp-rule.json' was not found.")
+        return
     except json.JSONDecodeError:
         print("Error decoding JSON from 'example-custom-rasp-rule.json'.")
+        return
+
+    group_id = get_group_id()
+    if group_id:
+        deploy_rule(group_id, data)
+
+if __name__ == '__main__':
+    main()
